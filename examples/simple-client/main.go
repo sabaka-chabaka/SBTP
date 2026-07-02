@@ -16,6 +16,7 @@ func main() {
 	getUser(c)
 	slowWithShortTimeout()
 	getImage(c)
+	hello(c)
 }
 
 func ping(c *client.Client) {
@@ -91,5 +92,21 @@ func getImage(c *client.Client) {
 		fmt.Printf("Success")
 	} else {
 		fmt.Printf("getImage failed with status %s\n", resp.Status)
+	}
+}
+
+func hello(c *client.Client) {
+	req := client.NewRequest("GET", "/hello/guy", nil)
+
+	resp, err := c.Do(req)
+
+	if err != nil {
+		log.Fatalf("hello failed: %v", err)
+	}
+
+	if resp.Status.IsSuccess() {
+		fmt.Printf("hello -> %s\n", resp.Payload)
+	} else {
+		fmt.Printf("hello failed with status %s\n", resp.Status)
 	}
 }

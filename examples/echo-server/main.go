@@ -48,6 +48,11 @@ func main() {
 		return server.NewResponse(frame.StatusOK, data)
 	})
 
+	srv.Handle("/hello/{name}", func(req *server.Request) *server.Response {
+		name := req.Param("name")
+		return server.NewResponse(frame.StatusOK, []byte("Hello "+name+"!"))
+	})
+
 	log.Println("SBTP server listening on :9000")
 	if err := srv.ListenAndServe(":9000"); err != nil {
 		log.Fatal(err)
