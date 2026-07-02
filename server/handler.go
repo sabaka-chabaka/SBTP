@@ -7,6 +7,7 @@ type Request struct {
 	Path    string
 	Headers []frame.Header
 	Payload []byte
+	params  map[string]string
 	raw     *frame.Frame
 }
 
@@ -61,4 +62,8 @@ func (r *Response) toFrame() *frame.Frame {
 		f.ApplyChecksum()
 	}
 	return f
+}
+
+func (r *Request) Param(name string) string {
+	return r.params[name]
 }
