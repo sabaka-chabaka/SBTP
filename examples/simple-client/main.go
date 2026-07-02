@@ -4,6 +4,7 @@ import (
 	"SBTP/client"
 	"fmt"
 	"log"
+	"os"
 	"time"
 )
 
@@ -14,6 +15,7 @@ func main() {
 	echo(c)
 	getUser(c)
 	slowWithShortTimeout()
+	getImage(c)
 }
 
 func ping(c *client.Client) {
@@ -67,5 +69,27 @@ func slowWithShortTimeout() {
 		fmt.Printf("slow -> timed out after %v as expected (%v)\n", elapsed, err)
 	} else {
 		fmt.Println("slow -> unexpectedly succeeded, timeout did not trigger")
+	}
+}
+
+func getImage(c *client.Client) {
+	req := client.NewRequest("GET", "/dog", nil)
+
+	resp, err := c.Do(req)
+
+	if err != nil {
+		log.Fatalf("getImage failed: %v", err)
+	}
+
+	if resp.Status.IsSuccess() {
+		err := os.WriteFile("output.png", resp.Payload, 0644)
+		if err != nil {
+			fmt.Println("Error:", err)
+			return
+		}
+
+		fmt.Printf("Success")
+	} else {
+		fmt.Printf("getImage failed with status %s\n", resp.Status)
 	}
 }

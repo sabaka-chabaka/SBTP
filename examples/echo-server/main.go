@@ -3,7 +3,9 @@ package main
 import (
 	"SBTP/frame"
 	"SBTP/server"
+	"fmt"
 	"log"
+	"os"
 	"time"
 )
 
@@ -32,6 +34,18 @@ func main() {
 	srv.Handle("/slow", func(req *server.Request) *server.Response {
 		time.Sleep(2 * time.Second)
 		return server.NewResponse(frame.StatusOK, []byte("done"))
+	})
+
+	srv.Handle("/dog", func(req *server.Request) *server.Response {
+		filePath := "sabaka.png"
+
+		data, err := os.ReadFile(filePath)
+		if err != nil {
+			fmt.Println("Error:", err)
+			return server.NewResponse(frame.StatusNotFound, nil)
+		}
+
+		return server.NewResponse(frame.StatusOK, data)
 	})
 
 	log.Println("SBTP server listening on :9000")
