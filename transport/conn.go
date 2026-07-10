@@ -6,10 +6,15 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"io"
 	"net"
 	"time"
 )
+
+const MaxCiphertextSize = 65 * 1024 * 1024
+
+var ErrCiphertextTooLarge = errors.New("transport: ciphertext exceeds max size")
 
 const (
 	DefaultReadTimeout  = 30 * time.Second
@@ -39,6 +44,10 @@ func (c *Conn) EnableEncryption(session *crypto.Session) {
 	c.session = session
 }
 
+func (c *Conn) Encrypted() bool {
+	return c.session != nil
+}
+
 func (c *Conn) SetReadTimeout(d time.Duration) {
 	c.readTimeout = d
 }
@@ -58,11 +67,19 @@ func (c *Conn) ReadFrame() (*frame.Frame, error) {
 		return frame.ReadFrame(c.reader)
 	}
 
+	return c.readEncryptedFrame()
+}
+
+func (c *Conn) readEncryptedFrame() (*frame.Frame, error) {
 	lengthBuf := make([]byte, 4)
 	if _, err := io.ReadFull(c.reader, lengthBuf); err != nil {
 		return nil, err
 	}
 	length := binary.BigEndian.Uint32(lengthBuf)
+
+	if length > MaxCiphertextSize {
+		return nil, ErrCiphertextTooLarge
+	}
 
 	ciphertext := make([]byte, length)
 	if _, err := io.ReadFull(c.reader, ciphertext); err != nil {
@@ -91,6 +108,10 @@ func (c *Conn) WriteFrame(f *frame.Frame) error {
 		return c.writer.Flush()
 	}
 
+	return c.writeEncryptedFrame(f)
+}
+
+func (c *Conn) writeEncryptedFrame(f *frame.Frame) error {
 	var buf bytes.Buffer
 	if err := frame.WriteFrame(&buf, f); err != nil {
 		return err
@@ -101,9 +122,10 @@ func (c *Conn) WriteFrame(f *frame.Frame) error {
 		return err
 	}
 
-	length := make([]byte, 4)
-	binary.BigEndian.PutUint32(length, uint32(len(ciphertext)))
-	if _, err := c.writer.Write(length); err != nil {
+	lengthBuf := make([]byte, 4)
+	binary.BigEndian.PutUint32(lengthBuf, uint32(len(ciphertext)))
+
+	if _, err := c.writer.Write(lengthBuf); err != nil {
 		return err
 	}
 	if _, err := c.writer.Write(ciphertext); err != nil {
