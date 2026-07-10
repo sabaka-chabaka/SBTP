@@ -1,8 +1,12 @@
 package transport
 
 import (
+	"SBTP/crypto"
 	"SBTP/frame"
 	"bufio"
+	"bytes"
+	"encoding/binary"
+	"io"
 	"net"
 	"time"
 )
@@ -18,6 +22,7 @@ type Conn struct {
 	writer       *bufio.Writer
 	readTimeout  time.Duration
 	writeTimeout time.Duration
+	session      *crypto.Session
 }
 
 func NewConn(c net.Conn) *Conn {
@@ -28,6 +33,10 @@ func NewConn(c net.Conn) *Conn {
 		readTimeout:  DefaultReadTimeout,
 		writeTimeout: DefaultWriteTimeout,
 	}
+}
+
+func (c *Conn) EnableEncryption(session *crypto.Session) {
+	c.session = session
 }
 
 func (c *Conn) SetReadTimeout(d time.Duration) {
@@ -44,7 +53,28 @@ func (c *Conn) ReadFrame() (*frame.Frame, error) {
 			return nil, err
 		}
 	}
-	return frame.ReadFrame(c.reader)
+
+	if c.session == nil {
+		return frame.ReadFrame(c.reader)
+	}
+
+	lengthBuf := make([]byte, 4)
+	if _, err := io.ReadFull(c.reader, lengthBuf); err != nil {
+		return nil, err
+	}
+	length := binary.BigEndian.Uint32(lengthBuf)
+
+	ciphertext := make([]byte, length)
+	if _, err := io.ReadFull(c.reader, ciphertext); err != nil {
+		return nil, err
+	}
+
+	plaintext, err := c.session.Decrypt(ciphertext)
+	if err != nil {
+		return nil, err
+	}
+
+	return frame.ReadFrame(bytes.NewReader(plaintext))
 }
 
 func (c *Conn) WriteFrame(f *frame.Frame) error {
@@ -53,7 +83,30 @@ func (c *Conn) WriteFrame(f *frame.Frame) error {
 			return err
 		}
 	}
-	if err := frame.WriteFrame(c.writer, f); err != nil {
+
+	if c.session == nil {
+		if err := frame.WriteFrame(c.writer, f); err != nil {
+			return err
+		}
+		return c.writer.Flush()
+	}
+
+	var buf bytes.Buffer
+	if err := frame.WriteFrame(&buf, f); err != nil {
+		return err
+	}
+
+	ciphertext, err := c.session.Encrypt(buf.Bytes())
+	if err != nil {
+		return err
+	}
+
+	length := make([]byte, 4)
+	binary.BigEndian.PutUint32(length, uint32(len(ciphertext)))
+	if _, err := c.writer.Write(length); err != nil {
+		return err
+	}
+	if _, err := c.writer.Write(ciphertext); err != nil {
 		return err
 	}
 	return c.writer.Flush()
