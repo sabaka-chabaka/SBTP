@@ -1,7 +1,6 @@
 package transport
 
 import (
-	"net"
 	"sync"
 	"time"
 )
@@ -11,12 +10,14 @@ const (
 	DefaultIdleConnTimeout = 90 * time.Second
 )
 
+type DialFunc func() (*Conn, error)
+
 type Pool struct {
 	mu          sync.Mutex
 	idle        map[string][]*idleConn
 	maxIdle     int
 	idleTimeout time.Duration
-	dialTimeout time.Duration
+	dial        DialFunc
 }
 
 type idleConn struct {
@@ -24,12 +25,12 @@ type idleConn struct {
 	returnAt time.Time
 }
 
-func NewPool() *Pool {
+func NewPool(dial DialFunc) *Pool {
 	return &Pool{
 		idle:        make(map[string][]*idleConn),
 		maxIdle:     DefaultMaxIdleConns,
 		idleTimeout: DefaultIdleConnTimeout,
-		dialTimeout: 5 * time.Second,
+		dial:        dial,
 	}
 }
 
@@ -67,11 +68,7 @@ func (p *Pool) Get(addr string) (*Conn, error) {
 	}
 	p.mu.Unlock()
 
-	rawConn, err := net.DialTimeout("tcp", addr, p.dialTimeout)
-	if err != nil {
-		return nil, err
-	}
-	return NewConn(rawConn), nil
+	return p.dial()
 }
 
 func (p *Pool) Put(addr string, conn *Conn) {

@@ -32,12 +32,25 @@ func WithEncryption() Option {
 	}
 }
 
+func WithMaxIdleConns(n int) Option {
+	return func(c *Client) {
+		c.pool.SetMaxIdleConns(n)
+	}
+}
+
+func WithIdleTimeout(d time.Duration) Option {
+	return func(c *Client) {
+		c.pool.SetIdleTimeout(d)
+	}
+}
+
 func New(addr string, opts ...Option) *Client {
 	c := &Client{
 		addr:    addr,
 		timeout: transport.DefaultReadTimeout,
-		pool:    transport.NewPool(),
 	}
+	c.pool = transport.NewPool(c.dial)
+
 	for _, opt := range opts {
 		opt(c)
 	}
