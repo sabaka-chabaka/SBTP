@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	c := client.New("localhost:9000", client.WithTimeout(5*time.Second))
+	c := client.New("localhost:9000", client.WithTimeout(5*time.Second), client.WithEncryption())
 
 	ping(c)
 	echo(c)

@@ -14,6 +14,7 @@ func main() {
 
 	srv.Use(server.Recover())
 	srv.Use(server.Logging(log.Default()))
+	srv.RequireEncryption()
 
 	srv.Handle("/ping", func(req *server.Request) *server.Response {
 		return server.NewResponse(frame.StatusOK, []byte("pong"))
