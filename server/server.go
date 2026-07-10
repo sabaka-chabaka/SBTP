@@ -1,6 +1,7 @@
 package server
 
 import (
+	"SBTP/crypto"
 	"SBTP/frame"
 	"SBTP/transport"
 	"log"
@@ -11,6 +12,7 @@ type Server struct {
 	router     *Router
 	middleware []Middleware
 	logger     *log.Logger
+	requireTLS bool
 }
 
 func New() *Server {
@@ -18,6 +20,10 @@ func New() *Server {
 		router: NewRouter(),
 		logger: log.Default(),
 	}
+}
+
+func (s *Server) RequireEncryption() {
+	s.requireTLS = true
 }
 
 func (s *Server) Handle(path string, h Handler) {
@@ -46,8 +52,18 @@ func (s *Server) ListenAndServe(addr string) error {
 }
 
 func (s *Server) handleConn(rawConn net.Conn) {
+	defer rawConn.Close()
+
 	conn := transport.NewConn(rawConn)
-	defer conn.Close()
+
+	if s.requireTLS {
+		session, err := crypto.ServerHandshake(rawConn)
+		if err != nil {
+			s.logger.Printf("handshake failed from %s: %v", rawConn.RemoteAddr(), err)
+			return
+		}
+		conn.EnableEncryption(session)
+	}
 
 	for {
 		f, err := conn.ReadFrame()
